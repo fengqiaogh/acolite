@@ -12,7 +12,7 @@
 
 def l1_convert(inputfile, output = None, settings = {}, verbosity=5):
     import numpy as np
-    from scipy.interpolate import interp2d
+    from scipy.interpolate import LinearNDInterpolator
 
     import datetime, dateutil.parser, os
     import acolite as ac
@@ -264,8 +264,8 @@ def l1_convert(inputfile, output = None, settings = {}, verbosity=5):
                 plat = [tllat, trlat, brlat, bllat]
 
                 ## set up interpolator
-                zlon = interp2d(pcol, prow, plon)
-                zlat = interp2d(pcol, prow, plat)
+                zlon = LinearNDInterpolator(list(zip(pcol, prow)), plon)
+                zlat = LinearNDInterpolator(list(zip(pcol, prow)), plat)
 
                 ## pixel coordinate limits
                 if sensor in ['GF1_WFV1', 'GF1_WFV2', 'GF1_WFV3', 'GF1_WFV4','GF1D_PMS', 'GF6_PMS']:
@@ -279,14 +279,15 @@ def l1_convert(inputfile, output = None, settings = {}, verbosity=5):
 
                 x = np.arange(x0, x0+ns, 1)
                 y = np.arange(y0, y0+nl, 1)
-
+                X, Y = np.meshgrid(x, y)
+                
                 print('Computing lon')
-                lon = zlon(x, y)
+                lon = zlon(X, Y)
                 gemo.write('lon', lon)
                 lon = None
 
                 print('Computing lat')
-                lat = zlat(x, y)
+                lat = zlat(X, Y)
                 gemo.write('lat', lat)
                 lat = None
 
