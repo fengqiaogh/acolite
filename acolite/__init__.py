@@ -8,6 +8,7 @@ from acolite import venus
 from acolite import ikonos
 from acolite import viirs
 from acolite import seadas
+from acolite import avhrr
 
 from acolite import chris
 from acolite import prisma
@@ -47,6 +48,7 @@ from acolite import gem
 from acolite import parameters
 
 from acolite import api
+from acolite import rtm
 
 ## ignore numpy errors
 import numpy as np
@@ -82,9 +84,9 @@ config['path'] = path
 
 ## update version info
 if 'version' in config:
-    version = 'Generic Version {}'.format(config['version'])
+    version = '{}'.format(config['version'])
 else:
-    version = 'Generic GitHub Clone'
+    version = 'GitHub Clone'
 
     gitdir = '{}/.git'.format(path)
     gd = {}

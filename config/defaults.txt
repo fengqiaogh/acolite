@@ -215,7 +215,7 @@ flag_exponent_dem_shadow=6
 
 ## atmospheric correction settings
 atmospheric_correction=True
-aerosol_correction=dark_spectrum
+atmospheric_correction_method=dark_spectrum
 
 ## gas transmittance settings
 gas_transmittance=True
@@ -287,11 +287,10 @@ glint_write_rhog_all=False
 
 ## adjacency correction options
 adjacency_correction=False
-adjacency_correction_method=radcor
+adjacency_correction_method=None
 
 ## radcor options
-radcor_kernel_radius=3.5
-radcor_kernel_rescale=False
+radcor_kernel_radius=5.0
 radcor_kernel_complete_method=neighbourhood
 radcor_force_model=None
 radcor_force_aot=None
@@ -327,9 +326,8 @@ radcor_diagnostic_plots=False
 ## tsdsf options
 tsdsf_initial_aot=1.0
 tsdsf_kernel_radius=None
-tsdsf_kernel_rescale=False
 tsdsf_kernel_complete_method=neighbourhood
-tsdsf_psf_centre_zero=True
+tsdsf_psf_centre_zero=False
 tsdsf_bratio_option=percentile
 tsdsf_bratio_percentile=1
 tsdsf_wave_range=400,2500
