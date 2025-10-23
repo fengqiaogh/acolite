@@ -353,9 +353,9 @@ def l1_convert(inputfile, output=None, settings=None):
                 # 计算时间间隔的一半，得到中间时间
                 time_diff = (end_time - start_time) / 2
                 dtime = start_time + time_diff
-                doy = dtime.strftime("%j")
-                se_distance = ac.shared.distance_se(doy)
-                isodate = dtime.isoformat()
+        doy = dtime.strftime("%j")
+        se_distance = ac.shared.distance_se(doy)
+        isodate = dtime.isoformat()
 
         ## figure out suitable UTM zone
         if "CenterLongitude" in meta:
