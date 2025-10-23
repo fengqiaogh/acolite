@@ -13,51 +13,305 @@
 ##                2025-02-04 (QV) improved settings handling
 ##                2025-02-10 (QV) cleaned up settings use, output naming
 
-def l1_convert(inputfile, output = None, settings = None):
+
+def l1_convert(inputfile, output=None, settings=None):
+    import datetime
+    import os
+
+    import dateutil.parser
     import numpy as np
     import scipy.interpolate
-
-    import datetime, dateutil.parser, os
-    import acolite as ac
     from osgeo import gdal
 
+    import acolite as ac
+
     ## get run settings
-    setu = {k: ac.settings['run'][k] for k in ac.settings['run']}
+    setu = {k: ac.settings["run"][k] for k in ac.settings["run"]}
 
     ## additional run settings
     if settings is not None:
         settings = ac.acolite.settings.parse(settings)
-        for k in settings: setu[k] = settings[k]
+        for k in settings:
+            setu[k] = settings[k]
     ## end additional run settings
 
-    verbosity = setu['verbosity']
+    verbosity = setu["verbosity"]
 
     ## parse inputfile
     if type(inputfile) != list:
         if type(inputfile) == str:
-            inputfile = inputfile.split(',')
+            inputfile = inputfile.split(",")
         else:
             inputfile = list(inputfile)
     nscenes = len(inputfile)
-    if verbosity > 1: print('Starting conversion of {} scenes'.format(nscenes))
+    if verbosity > 1:
+        print("Starting conversion of {} scenes".format(nscenes))
 
     ## from Mona Allam PDF
     ## 240A9946ECED64C3CB4D56B8A8764F35
     dn_scaling = {}
-    dn_scaling['GF1'] = {}
-    dn_scaling['GF1']['WFV1'] = {'Blue':0.19319, 'Green': 0.16041, 'Red': 0.12796, 'NIR': 0.13405}
-    dn_scaling['GF1']['WFV2'] = {'Blue':0.2057, 'Green': 0.1648, 'Red': 0.1260, 'NIR': 0.1187}
-    dn_scaling['GF1']['WFV3'] = {'Blue':0.2106, 'Green': 0.1825, 'Red': 0.1346, 'NIR': 0.1187}
-    dn_scaling['GF1']['WFV4'] = {'Blue':0.2522, 'Green': 0.2029, 'Red': 0.1528, 'NIR': 0.1031}
+    dn_scaling["GF1"] = {}
+    dn_scaling["GF1"]["WFV1"] = {
+        "Blue": 0.19319,
+        "Green": 0.16041,
+        "Red": 0.12796,
+        "NIR": 0.13405,
+    }
+    dn_scaling["GF1"]["WFV2"] = {
+        "Blue": 0.2057,
+        "Green": 0.1648,
+        "Red": 0.1260,
+        "NIR": 0.1187,
+    }
+    dn_scaling["GF1"]["WFV3"] = {
+        "Blue": 0.2106,
+        "Green": 0.1825,
+        "Red": 0.1346,
+        "NIR": 0.1187,
+    }
+    dn_scaling["GF1"]["WFV4"] = {
+        "Blue": 0.2522,
+        "Green": 0.2029,
+        "Red": 0.1528,
+        "NIR": 0.1031,
+    }
 
-    dn_scaling['GF1B'] = {'PMS': {'PAN': 0.0687, 'MS1': 0.0757, 'MS2': 0.0618, 'MS3': 0.0545, 'MS4': 0.0572}}
-    dn_scaling['GF1C'] = {'PMS': {'PAN': 0.0709, 'MS1': 0.0758, 'MS2': 0.0657, 'MS3': 0.0543, 'MS4': 0.0564}}
-    dn_scaling['GF1D'] = {'PMS': {'PAN': 0.0715, 'MS1': 0.0738, 'MS2': 0.0656, 'MS3': 0.0590, 'MS4': 0.0585}}
+    dn_scaling["GF1B"] = {
+        "PMS": {
+            "PAN": 0.0687,
+            "MS1": 0.0757,
+            "MS2": 0.0618,
+            "MS3": 0.0545,
+            "MS4": 0.0572,
+        }
+    }
+    dn_scaling["GF1C"] = {
+        "PMS": {
+            "PAN": 0.0709,
+            "MS1": 0.0758,
+            "MS2": 0.0657,
+            "MS3": 0.0543,
+            "MS4": 0.0564,
+        }
+    }
+    dn_scaling["GF1D"] = {
+        "PMS": {
+            "PAN": 0.0715,
+            "MS1": 0.0738,
+            "MS2": 0.0656,
+            "MS3": 0.0590,
+            "MS4": 0.0585,
+        }
+    }
 
-    dn_scaling['GF6'] = {'WFV': {'B1': 0.0675, 'B2': 0.0552, 'B3': 0.0513, 'B4': 0.0314,
-                                 'B5': 0.0519, 'B6': 0.0454, 'B7': 0.0718, 'B8': 0.0596},
-                          'PMS': {'PAN': 0.0537, 'MS1': 0.082, 'MS2': 0.0645, 'MS3': 0.0489, 'MS4': 0.0286}}
+    dn_scaling["GF2"] = {
+        "PMS1": {
+            2015: {
+                "PAN": 0.1538,
+                "MS1": 0.1457,
+                "MS2": 0.1604,
+                "MS3": 0.155,
+                "MS4": 0.1731,
+            },
+            2016: {
+                "PAN": 0.1501,
+                "MS1": 0.1322,
+                "MS2": 0.155,
+                "MS3": 0.1477,
+                "MS4": 0.1613,
+            },
+            2017: {
+                "PAN": 0.1503,
+                "MS1": 0.1193,
+                "MS2": 0.153,
+                "MS3": 0.1424,
+                "MS4": 0.1569,
+            },
+            2018: {
+                "PAN": 0.1725,
+                "MS1": 0.1356,
+                "MS2": 0.1736,
+                "MS3": 0.1644,
+                "MS4": 0.1788,
+            },
+            2019: {
+                "PAN": 0.1855,
+                "MS1": 0.1453,
+                "MS2": 0.1826,
+                "MS3": 0.1727,
+                "MS4": 0.1908,
+            },
+            2020: {
+                "PAN": 0.1817,
+                "MS1": 0.1378,
+                "MS2": 0.1778,
+                "MS3": 0.17,
+                "MS4": 0.1858,
+            },
+            2021: {
+                "PAN": 0.1884,
+                "MS1": 0.1374,
+                "MS2": 0.1784,
+                "MS3": 0.1723,
+                "MS4": 0.1894,
+            },
+            2022: {
+                "PAN": 0.1884,
+                "MS1": 0.1374,
+                "MS2": 0.1784,
+                "MS3": 0.1723,
+                "MS4": 0.1894,
+            },
+            2023: {
+                "PAN": 0.1894,
+                "MS1": 0.1489,
+                "MS2": 0.1871,
+                "MS3": 0.164,
+                "MS4": 0.1934,
+            },
+            2024: {
+                "PAN": 0.178,
+                "MS1": 0.138,
+                "MS2": 0.169,
+                "MS3": 0.164,
+                "MS4": 0.192,
+            },
+            2025: {
+                "PAN": 0.178,
+                "MS1": 0.138,
+                "MS2": 0.169,
+                "MS3": 0.164,
+                "MS4": 0.192,
+            },
+        },
+        "PMS2": {
+            2016: {
+                "PAN": 0.1863,
+                "MS1": 0.1762,
+                "MS2": 0.1856,
+                "MS3": 0.1754,
+                "MS4": 0.198,
+            },
+            2017: {
+                "PAN": 0.1679,
+                "MS1": 0.1434,
+                "MS2": 0.1595,
+                "MS3": 0.1511,
+                "MS4": 0.1685,
+            },
+            2018: {
+                "PAN": 0.2136,
+                "MS1": 0.1859,
+                "MS2": 0.2072,
+                "MS3": 0.1934,
+                "MS4": 0.218,
+            },
+            2019: {
+                "PAN": 0.198,
+                "MS1": 0.175,
+                "MS2": 0.1902,
+                "MS3": 0.177,
+                "MS4": 0.1968,
+            },
+            2020: {
+                "PAN": 0.2025,
+                "MS1": 0.1752,
+                "MS2": 0.1919,
+                "MS3": 0.1804,
+                "MS4": 0.1968,
+            },
+            2021: {
+                "PAN": 0.1959,
+                "MS1": 0.1641,
+                "MS2": 0.183,
+                "MS3": 0.1705,
+                "MS4": 0.1878,
+            },
+            2022: {
+                "PAN": 0.1923,
+                "MS1": 0.1743,
+                "MS2": 0.1784,
+                "MS3": 0.1668,
+                "MS4": 0.1912,
+            },
+            2023: {
+                "PAN": 0.1862,
+                "MS1": 0.1679,
+                "MS2": 0.1869,
+                "MS3": 0.1728,
+                "MS4": 0.1915,
+            },
+            2024: {
+                "PAN": 0.188,
+                "MS1": 0.165,
+                "MS2": 0.171,
+                "MS3": 0.171,
+                "MS4": 0.197,
+            },
+            2025: {
+                "PAN": 0.188,
+                "MS1": 0.165,
+                "MS2": 0.171,
+                "MS3": 0.171,
+                "MS4": 0.197,
+            },
+        },
+    }
 
+    dn_scaling["GF6"] = {
+        "WFV": {
+            "B1": 0.0675,
+            "B2": 0.0552,
+            "B3": 0.0513,
+            "B4": 0.0314,
+            "B5": 0.0519,
+            "B6": 0.0454,
+            "B7": 0.0718,
+            "B8": 0.0596,
+        },
+        "PMS": {
+            "PAN": 0.0537,
+            "MS1": 0.082,
+            "MS2": 0.0645,
+            "MS3": 0.0489,
+            "MS4": 0.0286,
+        },
+    }
+
+    dn_scaling["GF7"] = {
+        "DLC": {
+            2021: {
+                "MS1": 0.0914,
+                "MS2": 0.09810,
+                "MS3": 0.07590,
+                "MS4": 0.09250,
+            },
+            2022: {
+                "MS1": 0.08703,
+                "MS2": 0.08481,
+                "MS3": 0.06678,
+                "MS4": 0.08285,
+            },
+            2023: {
+                "MS1": 0.06263,
+                "MS2": 0.06363,
+                "MS3": 0.06462,
+                "MS4": 0.06137,
+            },
+            2024: {
+                "MS1": 0.0900,
+                "MS2": 0.0892,
+                "MS3": 0.0706,
+                "MS4": 0.0873,
+            },
+            2025: {
+                "MS1": 0.0900,
+                "MS2": 0.0892,
+                "MS3": 0.0706,
+                "MS4": 0.0873,
+            },
+        }
+    }
     ## bias should be 0 and not 0.2
     ## https://github.com/acolite/acolite/issues/53
     dn_bias = 0.0
@@ -66,198 +320,282 @@ def l1_convert(inputfile, output = None, settings = None):
     for bundle in inputfile:
         tiles, metafile = ac.gf.bundle_test(bundle)
         meta = ac.gf.metadata(metafile)
-        if meta['SatelliteID'] not in  ['GF1', 'GF1D', 'GF6']: continue
-        sensor = '{}_{}'.format(meta['SatelliteID'], meta['SensorID'])
+        if meta["SatelliteID"] not in ["GF1", "GF1D", "GF2", "GF6", "GF7"]:
+            continue
+        sensor = "{}_{}".format(meta["SatelliteID"], meta["SensorID"])
 
         ## get sensor specific defaults
         setd = ac.acolite.settings.parse(sensor)
         ## set sensor default if user has not specified the setting
         for k in setd:
-            if k not in ac.settings['user']: setu[k] = setd[k]
+            if k not in ac.settings["user"]:
+                setu[k] = setd[k]
         ## end set sensor specific defaults
 
-        verbosity = setu['verbosity']
-        if output is None: output = setu['output']
-        if output is None: output = os.path.dirname(bundle)
+        verbosity = setu["verbosity"]
+        if output is None:
+            output = setu["output"]
+        if output is None:
+            output = os.path.dirname(bundle)
 
         ## get F0 for radiance -> reflectance computation
-        f0 = ac.shared.f0_get(f0_dataset=setu['solar_irradiance_reference'])
+        f0 = ac.shared.f0_get(f0_dataset=setu["solar_irradiance_reference"])
 
-        print('Processing {}'.format(bundle))
+        print("Processing {}".format(bundle))
 
         ## parse data
-        dtime = dateutil.parser.parse(meta['CenterTime'])
-        doy = dtime.strftime('%j')
-        se_distance = ac.shared.distance_se(doy)
-        isodate = dtime.isoformat()
+        if meta.get("CenterTime") is not None:
+            dtime = dateutil.parser.parse(meta["CenterTime"])
+        else:
+            if meta.get("StartTime") is not None and meta.get("EndTime") is not None:
+                start_time = dateutil.parser.parse(meta["StartTime"])
+                end_time = dateutil.parser.parse(meta["EndTime"])
+                # 计算时间间隔的一半，得到中间时间
+                time_diff = (end_time - start_time) / 2
+                dtime = start_time + time_diff
+                doy = dtime.strftime("%j")
+                se_distance = ac.shared.distance_se(doy)
+                isodate = dtime.isoformat()
 
         ## figure out suitable UTM zone
-        if 'CenterLongitude' in meta:
-            clon = float(meta['CenterLongitude'])
+        if "CenterLongitude" in meta:
+            clon = float(meta["CenterLongitude"])
         else:
-            clon = 0.5*(float(meta['BottomLeftLongitude'])+float(meta['TopRightLongitude']))
-        if 'CenterLatitude' in meta:
-            clat = float(meta['CenterLatitude'])
+            clon = 0.5 * (
+                float(meta["BottomLeftLongitude"]) + float(meta["TopRightLongitude"])
+            )
+        if "CenterLatitude" in meta:
+            clat = float(meta["CenterLatitude"])
         else:
-            clat = 0.5*(float(meta['BottomLeftLatitude'])+float(meta['TopRightLatitude']))
+            clat = 0.5 * (
+                float(meta["BottomLeftLatitude"]) + float(meta["TopRightLatitude"])
+            )
 
-        utm_zone = (int(1+(clon+180.0)/6.0))
+        utm_zone = int(1 + (clon + 180.0) / 6.0)
         north = clat > 0.0
-        epsg = 'EPSG:32{}{}'.format('6' if north else '7', utm_zone)
+        epsg = "EPSG:32{}{}".format("6" if north else "7", utm_zone)
 
         ## output attributes
         gatts = {}
-        gatts['sza'] = float(meta['SolarZenith'])
-        gatts['vza'] = float(meta['SatelliteZenith'])
-        gatts['saa'] = float(meta['SolarAzimuth'])
-        gatts['vaa'] = float(meta['SatelliteAzimuth'])
+        gatts["sza"] = float(meta["SolarZenith"])
+        gatts["vza"] = float(meta["SatelliteZenith"])
+        gatts["saa"] = float(meta["SolarAzimuth"])
+        gatts["vaa"] = float(meta["SatelliteAzimuth"])
 
-        if 'raa' not in gatts:
-            raa_ave = abs(gatts['saa'] - gatts['vaa'])
-            while raa_ave >= 180: raa_ave = abs(raa_ave-360)
-            gatts['raa'] = raa_ave
+        if "raa" not in gatts:
+            raa_ave = abs(gatts["saa"] - gatts["vaa"])
+            while raa_ave >= 180:
+                raa_ave = abs(raa_ave - 360)
+            gatts["raa"] = raa_ave
 
-        gatts['satellite'] = meta['SatelliteID']
-        gatts['sensor'] = sensor
-        gatts['isodate'] = isodate
-        gatts['se_distance'] = se_distance
-        gatts['doy'] = doy
-        gatts['acolite_file_type'] = 'L1R'
+        gatts["satellite"] = meta["SatelliteID"]
+        gatts["sensor"] = sensor
+        gatts["isodate"] = isodate
+        gatts["se_distance"] = se_distance
+        gatts["doy"] = doy
+        gatts["acolite_file_type"] = "L1R"
 
         ##
-        sensor = gatts['sensor']
+        sensor = gatts["sensor"]
         rsrd = ac.shared.rsr_dict(sensor)[sensor]
-        band_names = rsrd['rsr_bands']
-        f0d = ac.shared.rsr_convolute_dict(f0['wave']/1000, f0['data'], rsrd['rsr'])
+        band_names = rsrd["rsr_bands"]
+        f0d = ac.shared.rsr_convolute_dict(f0["wave"] / 1000, f0["data"], rsrd["rsr"])
 
-        mu0 = np.cos(gatts['sza']*(np.pi/180))
-        muv = np.cos(gatts['vza']*(np.pi/180))
+        mu0 = np.cos(gatts["sza"] * (np.pi / 180))
+        muv = np.cos(gatts["vza"] * (np.pi / 180))
 
         bands = {}
         for bi, b in enumerate(band_names):
             bands[b] = {}
-            for k in ['wave_mu', 'wave_nm', 'wave_name']:
+            for k in ["wave_mu", "wave_nm", "wave_name"]:
                 bands[b][k] = rsrd[k][b]
-            bands[b]['f0'] = f0d[b]
+            bands[b]["f0"] = f0d[b]
 
-            if sensor in ['GF1_WFV1', 'GF1_WFV2', 'GF1_WFV3', 'GF1_WFV4', 'GF1D_PMS', 'GF6_PMS']:
-                bands[b]['index'] = int(bi)+1
-            if sensor in ['GF6_WFV']:
-                bands[b]['index'] = int(b[1])
+            if sensor in [
+                "GF1_WFV1",
+                "GF1_WFV2",
+                "GF1_WFV3",
+                "GF1_WFV4",
+                "GF2_PMS1",
+                "GF2_PMS2",
+                "GF1D_PMS",
+                "GF6_PMS",
+                "GF7_DLC",
+            ]:
+                bands[b]["index"] = int(bi) + 1
+            if sensor in ["GF6_WFV"]:
+                bands[b]["index"] = int(b[1])
 
         ## order bands
-        if sensor in ['GF1D_PMS', 'GF6_PMS']:
-            idx = np.argsort([bands[b]['wave_name'] for b in bands if b not in ['PAN']])
-        if sensor in ['GF1_WFV1', 'GF1_WFV2', 'GF1_WFV3', 'GF1_WFV4', 'GF6_WFV']:
-            idx = np.argsort([bands[b]['wave_name'] for b in bands])
+        if sensor in ["GF1D_PMS", "GF2_PMS1", "GF2_PMS2", "GF6_PMS", "GF7_DLC"]:
+            idx = np.argsort([bands[b]["wave_name"] for b in bands if b not in ["PAN"]])
+        if sensor in ["GF1_WFV1", "GF1_WFV2", "GF1_WFV3", "GF1_WFV4", "GF6_WFV"]:
+            idx = np.argsort([bands[b]["wave_name"] for b in bands])
         bands_sorted = [band_names[i] for i in idx]
 
         ## image crop
-        if setu['limit'] is None: sub = None
+        if setu["limit"] is None:
+            sub = None
 
         ## track tile offsets
         x_off = 0
         y_off = 0
 
         ## run through tiles
-        if verbosity > 1: print('Running through {} {} image tiles'.format(len(tiles), sensor))
+        if verbosity > 1:
+            print("Running through {} {} image tiles".format(len(tiles), sensor))
         for ti, image_file in enumerate(tiles):
             bn = os.path.basename(image_file)
             try:
-                ctile = os.path.splitext(bn)[0].split('-')[1]
+                ctile = os.path.splitext(bn)[0].split("-")[1]
             except:
-                ctile = meta['ProductID']
+                ctile = meta["ProductID"]
 
-            #if ('PMS' in bn) & ('PAN' in bn): continue
-            if ctile.upper() == 'PAN': continue
-            oname  = '{}_{}_{}'.format(gatts['sensor'],  dtime.strftime('%Y_%m_%d_%H_%M_%S'), ctile)
-            if setu['region_name'] != '': oname+='_{}'.format(setu['region_name'])
-            ofile = '{}/{}_{}.nc'.format(output, oname, gatts['acolite_file_type'])
-            gatts['oname'] = oname
-            gatts['ofile'] = ofile
+            # if ('PMS' in bn) & ('PAN' in bn): continue
+            if "PAN" in ctile.upper():
+                continue
+            oname = "{}_{}_{}".format(
+                gatts["sensor"], dtime.strftime("%Y_%m_%d_%H_%M_%S"), ctile
+            )
+            if setu["region_name"] != "":
+                oname += "_{}".format(setu["region_name"])
+            ofile = "{}/{}_{}.nc".format(output, oname, gatts["acolite_file_type"])
+            gatts["oname"] = oname
+            gatts["ofile"] = ofile
 
             ## output file - one per tile
-            gemo = ac.gem.gem(ofile, new = True)
+            gemo = ac.gem.gem(ofile, new=True)
             gemo.gatts = {k: gatts[k] for k in gatts}
-            #gemo.nc_projection = nc_projection
+            # gemo.nc_projection = nc_projection
 
-            if verbosity > 1: print('Running {} tile {}/{}'.format(sensor, ti+1, len(tiles)))
+            if verbosity > 1:
+                print("Running {} tile {}/{}".format(sensor, ti + 1, len(tiles)))
 
             ## identify projection
             try:
                 prj = ac.shared.projection_read(image_file)
-                if verbosity > 1: print('Could determine projection from {}'.format(image_file))
+                if verbosity > 1:
+                    print("Could determine projection from {}".format(image_file))
             except:
                 prj = None
 
             ## reproject file to UTM if projection not read succesfully
             rpr_file = None
-            if setu['gf_reproject_to_utm']:
+            if setu["gf_reproject_to_utm"]:
                 if prj is None:
-                    rpr_file = '{}/{}'.format(ac.config['scratch_dir'], bn.replace('.tiff', '_reprojected.tif'))
+                    rpr_file = "{}/{}".format(
+                        ac.config["scratch_dir"],
+                        bn.replace(".tiff", "_reprojected.tif"),
+                    )
                     if not os.path.exists(rpr_file):
-                        if verbosity > 1: print('Reprojecting {} to {}'.format(image_file, epsg))
-                        if verbosity > 1: print('Target file {}'.format(rpr_file))
+                        if verbosity > 1:
+                            print("Reprojecting {} to {}".format(image_file, epsg))
+                        if verbosity > 1:
+                            print("Target file {}".format(rpr_file))
                         ## scratch directory
-                        if not os.path.exists(ac.config['scratch_dir']): os.makedirs(ac.config['scratch_dir'])
+                        if not os.path.exists(ac.config["scratch_dir"]):
+                            os.makedirs(ac.config["scratch_dir"])
                         ## reproject and close dataset
                         ds = gdal.Warp(rpr_file, image_file, dstSRS=epsg)
                         ds = None
                     ## get prj from new file
-                    if os.path.exists(rpr_file): prj = ac.shared.projection_read(rpr_file)
+                    if os.path.exists(rpr_file):
+                        prj = ac.shared.projection_read(rpr_file)
 
             ## add projection keys to gatts
             if prj is not None:
-                pkeys = ['xrange', 'yrange', 'proj4_string', 'pixel_size', 'zone']
+                pkeys = ["xrange", "yrange", "proj4_string", "pixel_size", "zone"]
                 for k in pkeys:
-                    if k in prj: gatts[k] = prj[k]
+                    if k in prj:
+                        gatts[k] = prj[k]
 
                 ## compute geolocation
                 if True:
-                    if verbosity > 1: print('Computing latitude/longitude')
+                    if verbosity > 1:
+                        print("Computing latitude/longitude")
                     lon, lat = ac.shared.projection_geo(prj, add_half_pixel=True)
-                    gemo.write('lon', lon)
+                    gemo.write("lon", lon)
                     lon = None
-                    if verbosity > 1: print('Wrote lon')
-                    gemo.write('lat', lat)
+                    if verbosity > 1:
+                        print("Wrote lon")
+                    gemo.write("lat", lat)
                     lat = None
-                    if verbosity > 1: print('Wrote lat')
+                    if verbosity > 1:
+                        print("Wrote lat")
 
             ## run through bands
             for bi, b in enumerate(bands_sorted):
-                if b == 'PAN': continue
-                print('Computing rhot_{} for {}'.format(bands[b]['wave_name'], gatts['oname']))
-                print(b, bi, dn_scaling[gatts['satellite']][gatts['sensor'].split('_')[1]][b])
+                if b == "PAN":
+                    continue
+                print(
+                    "Computing rhot_{} for {}".format(
+                        bands[b]["wave_name"], gatts["oname"]
+                    )
+                )
+                print(
+                    b,
+                    bi,
+                    dn_scaling[gatts["satellite"]][gatts["sensor"].split("_")[1]][
+                        dtime.year
+                    ][b],
+                )
 
                 ## read data
                 if rpr_file is None:
-                    cdata_radiance = ac.shared.read_band(image_file, bands[b]['index'], sub=sub)
+                    cdata_radiance = ac.shared.read_band(
+                        image_file, bands[b]["index"], sub=sub
+                    )
                 else:
-                    cdata_radiance = ac.shared.read_band(rpr_file, bands[b]['index'], sub=sub)
+                    cdata_radiance = ac.shared.read_band(
+                        rpr_file, bands[b]["index"], sub=sub
+                    )
                 data_shape = cdata_radiance.shape
 
                 ## compute radiance
-                cdata_radiance = cdata_radiance.astype(np.float32) * dn_scaling[gatts['satellite']][gatts['sensor'].split('_')[1]][b]
+                cdata_radiance = (
+                    cdata_radiance.astype(np.float32)
+                    * dn_scaling[gatts["satellite"]][gatts["sensor"].split("_")[1]][
+                        dtime.year
+                    ][b]
+                )
                 cdata_radiance += dn_bias
 
-                if setu['output_lt']:
+                if setu["output_lt"]:
                     ## write toa radiance
-                    gemo.write('Lt_{}'.format(bands[b]['wave_name']), cdata_radiance, ds_att = bands[b])
+                    gemo.write(
+                        "Lt_{}".format(bands[b]["wave_name"]),
+                        cdata_radiance,
+                        ds_att=bands[b],
+                    )
 
                 ## compute reflectance
-                cdata = cdata_radiance * (np.pi * gatts['se_distance'] * gatts['se_distance']) / (bands[b]['f0'] * mu0)
+                cdata = (
+                    cdata_radiance
+                    * (np.pi * gatts["se_distance"] * gatts["se_distance"])
+                    / (bands[b]["f0"] * mu0)
+                )
                 cdata_radiance = None
-                gemo.write('rhot_{}'.format(bands[b]['wave_name']), cdata, ds_att = bands[b])
+                gemo.write(
+                    "rhot_{}".format(bands[b]["wave_name"]), cdata, ds_att=bands[b]
+                )
                 cdata = None
 
             ## old geolocation
             if (rpr_file is None) and (prj is None):
-                nx, ny = int(meta['WidthInPixels']), int(meta['HeightInPixels'])
-                tllat, tllon = float(meta['TopLeftLatitude']), float(meta['TopLeftLongitude'])
-                trlat, trlon = float(meta['TopRightLatitude']), float(meta['TopRightLongitude'])
-                bllat, bllon = float(meta['BottomLeftLatitude']), float(meta['BottomLeftLongitude'])
-                brlat, brlon = float(meta['BottomRightLatitude']), float(meta['BottomRightLongitude'])
-                #clat, clon = float(meta['CenterLatitude']), float(meta['CenterLongitude'])
+                nx, ny = int(meta["WidthInPixels"]), int(meta["HeightInPixels"])
+                tllat, tllon = float(meta["TopLeftLatitude"]), float(
+                    meta["TopLeftLongitude"]
+                )
+                trlat, trlon = float(meta["TopRightLatitude"]), float(
+                    meta["TopRightLongitude"]
+                )
+                bllat, bllon = float(meta["BottomLeftLatitude"]), float(
+                    meta["BottomLeftLongitude"]
+                )
+                brlat, brlon = float(meta["BottomRightLatitude"]), float(
+                    meta["BottomRightLongitude"]
+                )
+                # clat, clon = float(meta['CenterLatitude']), float(meta['CenterLongitude'])
 
                 ## get vertex image location
                 pcol = [0, nx, nx, 0]
@@ -272,28 +610,38 @@ def l1_convert(inputfile, output = None, settings = None):
                 zlat = scipy.interpolate.LinearNDInterpolator((pcol, prow), plat)
 
                 ## pixel coordinate limits
-                if sensor in ['GF1_WFV1', 'GF1_WFV2', 'GF1_WFV3', 'GF1_WFV4','GF1D_PMS', 'GF6_PMS']:
+                if sensor in [
+                    "GF1_WFV1",
+                    "GF1_WFV2",
+                    "GF1_WFV3",
+                    "GF1_WFV4",
+                    "GF1D_PMS",
+                    "GF2_PMS1",
+                    "GF2_PMS2",
+                    "GF6_PMS",
+                    "GF7_DLC",
+                ]:
                     x0, y0 = 0, 0
                     ns, nl = nx, ny
-                if sensor == 'GF6_WFV':
+                if sensor == "GF6_WFV":
                     x0 = x_off
                     y0 = y_off
                     ns, nl = data_shape[1], data_shape[0]
                     x_off += data_shape[1]
 
-                x = np.arange(x0, x0+ns, 1)
-                y = np.arange(y0, y0+nl, 1)
+                x = np.arange(x0, x0 + ns, 1)
+                y = np.arange(y0, y0 + nl, 1)
                 X, Y = np.meshgrid(x, y)
 
-                print('Computing lon')
-                gemo.write('lon', zlon(X, Y))
+                print("Computing lon")
+                gemo.write("lon", zlon(X, Y))
 
-                print('Computing lat')
-                gemo.write('lat', zlat(X, Y))
+                print("Computing lat")
+                gemo.write("lat", zlat(X, Y))
                 del X, Y
 
             ## remove reprojected file
-            if (setu['clear_scratch']) & (rpr_file is not None):
+            if (setu["clear_scratch"]) & (rpr_file is not None):
                 if os.path.exists(rpr_file):
                     os.remove(rpr_file)
 
@@ -304,8 +652,8 @@ def l1_convert(inputfile, output = None, settings = None):
             ofiles.append(ofile)
 
     ## remove scratch directory
-    if os.path.exists(ac.config['scratch_dir']):
-        if (setu['clear_scratch']) & (len(os.listdir(ac.config['scratch_dir'])) == 0):
-            os.rmdir(ac.config['scratch_dir'])
+    if os.path.exists(ac.config["scratch_dir"]):
+        if (setu["clear_scratch"]) & (len(os.listdir(ac.config["scratch_dir"])) == 0):
+            os.rmdir(ac.config["scratch_dir"])
 
-    return(ofiles, setu)
+    return (ofiles, setu)
