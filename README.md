@@ -69,9 +69,86 @@ A suitable Python environment can for example be set up using conda and the pack
 Note that the above command assumes the use of GDAL >= 3.9, with JP2000 support to process Sentinel-2 imagery, and NetCDF support to output GeoTIFF files, which are installed by libgdal-jp2openjpeg and libgdal-netcdf. For GDAL < 3.9 these libgdal packages are not required.
 
 ## Installation
-* cd into a suitable directory and clone the git repository: `git clone --depth 1 https://github.com/acolite/acolite`
-* cd into the new acolite directory `cd acolite`
-* run `python launch_acolite.py`
+
+### 从源代码安装
+
+#### 方法一：使用uv安装（推荐）
+
+1. 安装uv包管理器（如果尚未安装）：
+   ```
+   pip install uv
+   ```
+
+2. 克隆git仓库（使用--depth 1参数避免下载不必要的历史记录）：
+   ```
+   git clone --depth 1 https://github.com/acolite/acolite
+   ```
+
+3. 进入acolite目录：
+   ```
+   cd acolite
+   ```
+
+4. 使用uv同步项目环境和依赖：
+   ```
+   uv sync
+   ```
+
+5. 运行ACOLITE：
+   ```
+   uv run python launch_acolite.py
+   ```
+
+
+
+## 使用说明
+
+### 图形用户界面(GUI)使用
+
+1. 启动ACOLITE GUI：
+   ```
+   uv run python launch_acolite.py
+   ```
+   ![ACOLITE GUI界面](docs/gui.png)
+
+### 命令行使用
+
+ACOLITE也可以通过命令行运行，适合批量处理和自动化任务：
+
+```bash
+uv run python acolite.py --cli \
+--inputfile input_path \
+--settings config/defaults/sensor_setting.txt \
+--output output_path
+```
+
+常用命令行参数：
+- `--cli`: 使用命令行界面模式
+- `--inputfile`: 输入文件路径
+- `--settings`: 设置文件路径
+- `--output`: 输出目录
+
+### 设置文件
+
+设置文件允许您保存和重用处理参数。创建一个文本文件，每行一个参数，格式为`参数=值`。
+
+每种传感器都有默认设置文件，位于`config/defaults/`目录下（例如`GF2_PMS1.txt`、`S2A_MSI.txt`等）。这些默认设置文件包含了针对特定传感器的推荐参数。
+
+建议不要直接编辑默认设置文件，而是创建一个新的设置文件，只包含您想要更改的参数。例如：
+
+```
+output=/path/to/output
+dsf_aerosol_type=maritime
+dsf_wavelength_correction=True
+l2w_clip=True
+rgb_r=655
+rgb_g=545
+rgb_b=465
+```
+
+运行时，ACOLITE会先加载对应传感器的默认设置，然后应用您设置文件中的参数覆盖。
+
+
 
 ## Ancillary and DEM/GED data download
 ACOLITE can automatically retrieve Copernicus DEM data (30 or 90 metre resolution) from the Amazon Web Services Public Datasets (e.g. https://registry.opendata.aws/copernicus-dem/). No account is necessary. The Copernicus 30 metre DEM is now the default DEM, but the use of a DEM needs to be set by dem_pressure=True.
