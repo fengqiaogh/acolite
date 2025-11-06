@@ -303,23 +303,36 @@ def acolite_l2r(gem,
     print('current uoz: {:.2f} uwv: {:.2f} pressure: {:.2f}'.format(gem.gatts['uoz'], gem.gatts['uwv'], gem.gatts['pressure']))
 
     ## which LUT data to read
+    par = 'romix'
+    ipar = 'romix+rsky_t'
     if (setu['dsf_interface_reflectance']):
         if (setu['dsf_interface_option'] == 'default'):
             par = 'romix+rsky_t'
         elif (setu['dsf_interface_option']  == '6sv'):
             par = 'romix+rsurf'
-            print(par)
-    else:
-        par = 'romix'
+            ipar = 'romix+rsurf'
+        elif (setu['dsf_interface_option']  == 'ffss_boa'):
+            ## keep default par/ipar
+            ## import skydome
+            meta_rsky, lut_rsky, rgi_rsky = ac.ac.skydome.import_skydome_lut(sensor = sensor_lut if not hyper else None, lut_base_skydome = 'ACOLITE-FFSS-202511-82W', par = 'rsky')
+        elif (setu['dsf_interface_option']  == 'ffss_toa'):
+            par = 'romix+ffss_toa'
+            ipar = 'romix+ffss_toa'
+        else:
+            print('dsf_interface_option={} not configured'.format(setu['dsf_interface_option']))
+            return
 
     ## set wind to wind range
     if gem.gatts['wind'] is None: gem.gatts['wind'] = setu['wind_default']
-    if par == 'romix+rsurf':
+    if (par == 'romix+rsurf'):
         gem.gatts['wind'] = max(2, gem.gatts['wind'])
         gem.gatts['wind'] = min(20, gem.gatts['wind'])
-    else:
+    elif (par == 'romix+rsky_t') | (par == 'romix'):
         gem.gatts['wind'] = max(0.1, gem.gatts['wind'])
         gem.gatts['wind'] = min(20, gem.gatts['wind'])
+    else:
+        ## placeholder for ffss_toa
+        gem.gatts['wind'] = 0
 
     ## get mean average geometry
     geom_ds = ['sza', 'vza', 'raa', 'pressure', 'wind']
@@ -604,12 +617,12 @@ def acolite_l2r(gem,
     t0 = time.time()
     print('Loading LUTs {}'.format(setu['luts']))
     ## load reverse lut romix -> aot
-    if use_revlut: revl = ac.aerlut.reverse_lut(sensor_lut, par=par, \
+    if use_revlut: revl = ac.aerlut.reverse_lut(sensor_lut, par = ipar, \
                                                 rsky_lut = setu['dsf_interface_lut'], base_luts=setu['luts'])
     ## load aot -> atmospheric parameters lut
     ## QV 2022-04-04 interface reflectance is always loaded since we include wind in the interpolation below
     ## not necessary for runs with par == romix, to be fixed
-    lutdw = ac.aerlut.import_luts(add_rsky=True, par=(par if par == 'romix+rsurf' else 'romix+rsky_t'), sensor=None if hyper else sensor_lut,
+    lutdw = ac.aerlut.import_luts(add_rsky = True, par = ipar, sensor=None if hyper else sensor_lut,
                                   rsky_lut = setu['dsf_interface_lut'],
                                   base_luts = setu['luts'], pressures = setu['luts_pressures'],
                                   reduce_dimensions=setu['luts_reduce_dimensions'])
@@ -1056,8 +1069,8 @@ def acolite_l2r(gem,
                 aot_lut[aot_stack[lut]['mask']] = -1
                 aot_sel = aot_stack[lut]['aot'] * 1.0
                 aot_sel_par = aot_stack[lut]['aot'] * np.nan
+                aot_sel_lut = '{}'.format(lut)
                 if setu['dsf_aot_estimate'] == 'fixed':
-                    aot_sel_lut = '{}'.format(lut)
                     aot_sel_bands = [aot_stack[lut]['{}'.format(bb)][0][0] for bb in fit_bands]
             ## select model based on min rmsd for 2 bands
             else:
@@ -1684,6 +1697,24 @@ def acolite_l2r(gem,
             rhot_noatm = (cur_data / gem.bands[b]['tt_gas']) - romix
             del romix
             cur_data = (rhot_noatm) / (dutott + astot*rhot_noatm)
+
+            ## perform FFSS correction after a/c
+            if (setu['dsf_interface_reflectance']) & (setu['dsf_interface_option']  == 'ffss_boa'):
+                xi = (gem.data_mem['sza'+gk], gem.data_mem['vza'+gk_vza], np.abs(180-gem.data_mem['raa'+gk_raa]), aot_lut, aot_sel)
+                vza = np.atleast_1d(gem.data_mem['vza'+gk_vza])
+                vza[vza == 0.0] = 0.001
+                rhof = ac.ac.sky_refl(np.radians(vza), n_w=1.34)
+                del vza
+                rsky = rhof * rgi_rsky[b](xi)
+                del xi, rhof
+                if (setu['dsf_aot_estimate'] == 'tiled'):
+                    if setu['verbosity'] > 1: print('Interpolating tiles for rsky')
+                    rsky = ac.shared.tiles_interp(rsky, xnew, ynew, target_mask=(valid_mask if setu['slicing'] else None), \
+                                target_mask_full=True, smooth=setu['dsf_tile_smoothing'], kern_size=setu['dsf_tile_smoothing_kernel_size'], method=setu['dsf_tile_interp_method'])
+
+                cur_data -= rsky
+                del rsky
+            ## end FFSS
 
             ## compute at surface Ed
             if setu['output_ed']:

@@ -6,6 +6,8 @@
 ##                2022-07-21 (QV) added check for tar and zip files
 ##                2022-10-26 (QV) update Planet multi-scene zip file handling
 ##                2025-05-22 (QV) made file extraction optional
+##                2025-11-04 (QV) added .SAFE and .SEN3 to S2 and S3 input_types
+##                                added .ZARR identification
 
 
 def identify_bundle(bundle, input_type=None, output=None):
@@ -19,6 +21,7 @@ def identify_bundle(bundle, input_type=None, output=None):
     zipped = False
     orig_bundle = "{}".format(bundle)
     extracted_path = None
+    test_zarr = False
 
     while input_type is None:
         if not os.path.exists(bundle):
@@ -38,6 +41,30 @@ def identify_bundle(bundle, input_type=None, output=None):
                     print(targ_bundle)
                     bundle = "{}".format(targ_bundle)
                     zipped = True
+
+        ################
+        ## ZARR
+        if test_zarr:
+            try:
+                meta = ac.zarr.meta_parse(bundle)
+                if meta["sensor"] in ["S2A_MSI", "S2B_MSI", "S2C_MSI"]:
+                    input_type = "Sentinel-2 .ZARR"
+                    break  ## exit loop
+                if meta["sensor"] in ["S3A_OLCI", "S3B_OLCI", "S3A_SLSTR", "S3B_SLSTR"]:
+                    input_type = "Sentinel-3 .ZARR"
+                    break  ## exit loop
+
+                md = ac.zarr.meta(bundle)
+                print("Retrieved ZARR data but could not identify sensor.")
+                print("ZARR metadata keys:")
+                print(md.keys())
+                print("ZARR stac_discovery properties:")
+                print(md["attributes"]["stac_discovery"]["properties"])
+                break  ## do not continue to next sensor
+            except:
+                break  ## do not continue to next sensor
+        ## end ZARR
+        ################
 
         ################
         ## ACOLITE
