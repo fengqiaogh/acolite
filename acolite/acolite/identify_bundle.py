@@ -7,27 +7,36 @@
 ##                2022-10-26 (QV) update Planet multi-scene zip file handling
 ##                2025-05-22 (QV) made file extraction optional
 
-def identify_bundle(bundle, input_type = None, output = None):
-    import os, glob, shutil, zipfile
+
+def identify_bundle(bundle, input_type=None, output=None):
+    import glob
+    import os
+    import shutil
+    import zipfile
+
     import acolite as ac
 
     zipped = False
-    orig_bundle = '{}'.format(bundle)
+    orig_bundle = "{}".format(bundle)
     extracted_path = None
 
     while input_type is None:
         if not os.path.exists(bundle):
-            print('Input file {} does not exist'.format(bundle))
-            break ## exit loop if path does not exist
+            print("Input file {} does not exist".format(bundle))
+            break  ## exit loop if path does not exist
 
         ## test if zip/tar file
         bn, ext = os.path.splitext(bundle)
-        if ac.settings['run']['extract_inputfile']:
-            if os.path.isfile(bundle) & (ext.lower() in ['.zip', '.tar', '.gz', '.tgz', '.bz2']):
-                targ_bundle, extracted_path = ac.shared.extract_bundle(bundle, output=output, verbosity=2)
+        if ac.settings["run"]["extract_inputfile"]:
+            if os.path.isfile(bundle) & (
+                ext.lower() in [".zip", ".tar", ".gz", ".tgz", ".bz2"]
+            ):
+                targ_bundle, extracted_path = ac.shared.extract_bundle(
+                    bundle, output=output, verbosity=2
+                )
                 if targ_bundle is not None:
                     print(targ_bundle)
-                    bundle = '{}'.format(targ_bundle)
+                    bundle = "{}".format(targ_bundle)
                     zipped = True
 
         ################
@@ -35,35 +44,46 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             gatts = ac.shared.nc_gatts(bundle)
             datasets = ac.shared.nc_datasets(bundle)
-            rhot_ds = [ds for ds in datasets if 'rhot_' in ds]
-            rhot_ds += [ds for ds in datasets if ds[0:2]=='bt']
-            if (gatts['generated_by'] == 'ACOLITE') & (len(rhot_ds) != 0):
-                input_type = 'ACOLITE'
-                break ## exit loop
+            rhot_ds = [ds for ds in datasets if "rhot_" in ds]
+            rhot_ds += [ds for ds in datasets if ds[0:2] == "bt"]
+            if (gatts["generated_by"] == "ACOLITE") & (len(rhot_ds) != 0):
+                input_type = "ACOLITE"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end ACOLITE
         ################
 
         ################
         ## Landsat
         try:
-            mtl = glob.glob('{}/{}'.format(bundle, '*MTL.txt'))
-            mtl += glob.glob('{}/{}'.format(bundle, '*MTL_L1T.TXT'))
-            mtl += glob.glob('{}/{}'.format(bundle, '*MTL_L1GST.TXT'))
-            if len(mtl)>0:
+            mtl = glob.glob("{}/{}".format(bundle, "*MTL.txt"))
+            mtl += glob.glob("{}/{}".format(bundle, "*MTL_L1T.TXT"))
+            mtl += glob.glob("{}/{}".format(bundle, "*MTL_L1GST.TXT"))
+            if len(mtl) > 0:
                 meta = ac.landsat.metadata_read(mtl[0])
                 ## get relevant data from meta
-                if 'PRODUCT_CONTENTS' in meta: pk = 'IMAGE_ATTRIBUTES'## COLL2
-                elif 'PRODUCT_METADATA' in meta: pk = 'PRODUCT_METADATA'## COLL1
-                spacecraft_id, sensor_id = meta[pk]['SPACECRAFT_ID'],meta[pk]['SENSOR_ID']
-                if (spacecraft_id in ['LANDSAT_5', 'LANDSAT_7', 'LANDSAT_8', 'LANDSAT_9']) | ((spacecraft_id == 'EO1') & (sensor_id == 'ALI')):
-                    input_type = 'Landsat'
-                    break ## exit loop
-                if (spacecraft_id in ['LANDSAT_1', 'LANDSAT_2', 'LANDSAT_3', 'LANDSAT_4', 'LANDSAT_5']) & (sensor_id == 'MSS'):
-                    input_type = 'Landsat'
+                if "PRODUCT_CONTENTS" in meta:
+                    pk = "IMAGE_ATTRIBUTES"  ## COLL2
+                elif "PRODUCT_METADATA" in meta:
+                    pk = "PRODUCT_METADATA"  ## COLL1
+                spacecraft_id, sensor_id = (
+                    meta[pk]["SPACECRAFT_ID"],
+                    meta[pk]["SENSOR_ID"],
+                )
+                if (
+                    spacecraft_id
+                    in ["LANDSAT_5", "LANDSAT_7", "LANDSAT_8", "LANDSAT_9"]
+                ) | ((spacecraft_id == "EO1") & (sensor_id == "ALI")):
+                    input_type = "Landsat"
+                    break  ## exit loop
+                if (
+                    spacecraft_id
+                    in ["LANDSAT_1", "LANDSAT_2", "LANDSAT_3", "LANDSAT_4", "LANDSAT_5"]
+                ) & (sensor_id == "MSS"):
+                    input_type = "Landsat"
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Landsat
         ################
 
@@ -71,50 +91,52 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## Sentinel-2
         try:
             safe_files = ac.sentinel2.safe_test(bundle)
-            granule = safe_files['granules'][0]
-            meta, band_data= ac.sentinel2.metadata_scene(safe_files['metadata']['path'])
-            if meta['SPACECRAFT_NAME'] in ['Sentinel-2A', 'Sentinel-2B', 'Sentinel-2C']:
-                input_type = 'Sentinel-2'
-                break ## exit loop
+            granule = safe_files["granules"][0]
+            meta, band_data = ac.sentinel2.metadata_scene(
+                safe_files["metadata"]["path"]
+            )
+            if meta["SPACECRAFT_NAME"] in ["Sentinel-2A", "Sentinel-2B", "Sentinel-2C"]:
+                input_type = "Sentinel-2"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Sentinel-2
         ################
 
         ################
         ## Sentinel-3
         try:
-            if zipped & (len(glob.glob('{}/*.SEN3'.format(bundle))) == 1):
-                dfiles = glob.glob('{}/*.SEN3/*.nc'.format(bundle))
+            if zipped & (len(glob.glob("{}/*.SEN3".format(bundle))) == 1):
+                dfiles = glob.glob("{}/*.SEN3/*.nc".format(bundle))
                 dfiles.sort()
             else:
-                dfiles = glob.glob('{}/*.nc'.format(bundle))
+                dfiles = glob.glob("{}/*.nc".format(bundle))
                 dfiles.sort()
             gatts = ac.shared.nc_gatts(dfiles[0])
-            if 'OLCI Level 1b Product' in gatts['title']:
-                input_type = 'Sentinel-3'
-                break ## exit loop
-            elif 'OLCI Level 2 WATER Product' in gatts['title']:
-                input_type = 'Sentinel-3'
-                break ## exit loop
-            elif 'MERIS Level 1b Product' in gatts['title']:
-                input_type = 'Sentinel-3'
-                break ## exit loop
-            elif 'MERIS Level 2 CLOUD Product' in gatts['title']:
-                input_type = 'Sentinel-3'
-                break ## exit loop
-            elif 'MERIS Level 2 WATER Product' in gatts['title']:
-                input_type = 'Sentinel-3'
-                break ## exit loop
-            elif 'S3 SLSTR L1' in gatts['title']:
-                input_type = 'SLSTR'
-                input_type = 'Sentinel-3'
+            if "OLCI Level 1b Product" in gatts["title"]:
+                input_type = "Sentinel-3"
+                break  ## exit loop
+            elif "OLCI Level 2 WATER Product" in gatts["title"]:
+                input_type = "Sentinel-3"
+                break  ## exit loop
+            elif "MERIS Level 1b Product" in gatts["title"]:
+                input_type = "Sentinel-3"
+                break  ## exit loop
+            elif "MERIS Level 2 CLOUD Product" in gatts["title"]:
+                input_type = "Sentinel-3"
+                break  ## exit loop
+            elif "MERIS Level 2 WATER Product" in gatts["title"]:
+                input_type = "Sentinel-3"
+                break  ## exit loop
+            elif "S3 SLSTR L1" in gatts["title"]:
+                input_type = "SLSTR"
+                input_type = "Sentinel-3"
 
-                break ## exit loop
+                break  ## exit loop
             else:
-                print(gatts['title'])
+                print(gatts["title"])
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Sentinel-3
         ################
 
@@ -122,11 +144,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## VIIRS
         try:
             ret = ac.viirs.bundle_test(bundle)
-            if (ret is not None):
-                input_type = 'VIIRS'
-                break ## exit loop
+            if ret is not None:
+                input_type = "VIIRS"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end VIIRS
         ################
 
@@ -134,25 +156,28 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## S2Resampling
         try:
             ret = ac.s2resampling.bundle_test(bundle)
-            if (ret is not None):
-                input_type = 'S2Resampling'
-                break ## exit loop
+            if ret is not None:
+                input_type = "S2Resampling"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end S2Resampling
         ################
 
         ################
         ## Pléiades/SPOT
         try:
-            ifiles,mfiles,pifiles,pmfiles = ac.pleiades.bundle_test(bundle, listpan=True)
+            ifiles, mfiles, pifiles, pmfiles = ac.pleiades.bundle_test(
+                bundle, listpan=True
+            )
             mfiles_set = set(mfiles)
-            for mfile in mfiles_set: meta = ac.pleiades.metadata_parse(mfile)
-            if meta['satellite'] in ['Pléiades', 'SPOT']:
-                input_type = 'Pléiades'
-                break ## exit loop
+            for mfile in mfiles_set:
+                meta = ac.pleiades.metadata_parse(mfile)
+            if meta["satellite"] in ["Pléiades", "SPOT"]:
+                input_type = "Pléiades"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Pléiades/SPOT
         ################
 
@@ -160,11 +185,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## VENUS
         try:
             meta = ac.venus.metadata_parse(bundle)
-            if meta['PLATFORM'] == 'VENUS':
-                input_type = 'VENUS'
-                break ## exit loop
+            if meta["PLATFORM"] == "VENUS":
+                input_type = "VENUS"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end VENUS
         ################
 
@@ -173,12 +198,23 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             metafile = ac.worldview.bundle_test(bundle)
             meta = ac.worldview.metadata_parse(metafile)
-            if meta['satellite'] in ['WorldView2', 'WorldView3', 'WorldView4', 'QuickBird2', 'GeoEye1',\
-                                     'LG01', 'LG02', 'LG03', 'LG04', 'LG05', 'LG06', ]:
-                input_type = 'WorldView'
-                break ## exit loop
+            if meta["satellite"] in [
+                "WorldView2",
+                "WorldView3",
+                "WorldView4",
+                "QuickBird2",
+                "GeoEye1",
+                "LG01",
+                "LG02",
+                "LG03",
+                "LG04",
+                "LG05",
+                "LG06",
+            ]:
+                input_type = "WorldView"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end WorldView
         ################
 
@@ -186,10 +222,10 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## CHRIS
         try:
             gains, mode_info = ac.chris.vdata(bundle)
-            input_type = 'CHRIS'
-            break ## exit loop
+            input_type = "CHRIS"
+            break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end CHRIS
         ################
 
@@ -197,11 +233,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## PRISMA
         try:
             gatts = ac.prisma.attributes(bundle)
-            if gatts['Product_ID'] == b'PRS_L1_STD':
-                input_type = 'PRISMA'
-                break ## exit loop
+            if gatts["Product_ID"] == b"PRS_L1_STD":
+                input_type = "PRISMA"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end PRISMA
         ################
 
@@ -209,11 +245,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## HICO
         try:
             gatts = ac.hico.attributes(bundle)
-            if gatts['Instrument_Short_Name'] == 'hico':
-                input_type = 'HICO'
-                break ## exit loop
+            if gatts["Instrument_Short_Name"] == "hico":
+                input_type = "HICO"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end HICO
         ################
 
@@ -221,11 +257,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## HYPERION
         try:
             metadata = ac.hyperion.metadata(bundle)
-            if metadata['PRODUCT_METADATA']['SENSOR_ID'] == 'HYPERION':
-                input_type = 'HYPERION'
-                break ## exit loop
+            if metadata["PRODUCT_METADATA"]["SENSOR_ID"] == "HYPERION":
+                input_type = "HYPERION"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end HYPERION
         ################
 
@@ -233,14 +269,14 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## DESIS
         try:
             metafile, imagefile = ac.desis.bundle_test(bundle)
-            #headerfile = imagefile.replace('.tif', '.hdr')
+            # headerfile = imagefile.replace('.tif', '.hdr')
             # header = ac.desis.hdr(headerfile)
             meta = ac.desis.metadata(metafile)
-            if (meta['mission'] == 'DESIS') & (meta['productType'] in ['L1B', 'L1C']):
-                input_type = 'DESIS'
-                break ## exit loop
+            if (meta["mission"] == "DESIS") & (meta["productType"] in ["L1B", "L1C"]):
+                input_type = "DESIS"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end DESIS
         ################
 
@@ -248,13 +284,15 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## PACE
         try:
             gatts = ac.shared.nc_gatts(bundle)
-            if 'PACE' in gatts['title']: platform = 'PACE'
-            if 'OCI Level-2 Data' in gatts['title']: platform = 'PACE'
-            if '{}_{}'.format(platform, gatts['instrument']) == 'PACE_OCI':
-                input_type = 'PACE'
-                break ## exit loop
+            if "PACE" in gatts["title"]:
+                platform = "PACE"
+            if "OCI Level-2 Data" in gatts["title"]:
+                platform = "PACE"
+            if "{}_{}".format(platform, gatts["instrument"]) == "PACE_OCI":
+                input_type = "PACE"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end PACE
         ################
 
@@ -262,12 +300,13 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## SeaDAS L1B
         try:
             gatts = ac.shared.nc_gatts(bundle)
-            if (gatts['processing_level'] == 'L1B') & \
-                (gatts['instrument'] in ['HAWKEYE']):
-                input_type = 'SeaDAS'
-                break ## exit loop
+            if (gatts["processing_level"] == "L1B") & (
+                gatts["instrument"] in ["HAWKEYE"]
+            ):
+                input_type = "SeaDAS"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end SeaDAS L1B
         ################
 
@@ -281,27 +320,27 @@ def identify_bundle(bundle, input_type = None, output = None):
             flist = list(files.keys())
             flist.sort()
             fk = flist[0]
-            if 'metadata' in files[fk]:
-                metafile = files[fk]['metadata']['path']
-            elif 'metadata_json' in files[fk]:
-                metafile = files[fk]['metadata_json']['path']
-            if 'analytic' in files[fk]:
-                image_file = files[fk]['analytic']['path']
-            elif 'analytic_ntf' in files[fk]:
-                image_file = files[fk]['analytic_ntf']['path']
-            elif 'pansharpened' in files[fk]:
-                image_file = files[fk]['pansharpened']['path']
-            elif 'sr' in files[fk]:
-                image_file = files[fk]['sr']['path']
-            elif 'composite' in files[fk]:
-                image_file = files[fk]['composite']['path']
-                metafile = files[flist[-1]]['metadata']['path']
+            if "metadata" in files[fk]:
+                metafile = files[fk]["metadata"]["path"]
+            elif "metadata_json" in files[fk]:
+                metafile = files[fk]["metadata_json"]["path"]
+            if "analytic" in files[fk]:
+                image_file = files[fk]["analytic"]["path"]
+            elif "analytic_ntf" in files[fk]:
+                image_file = files[fk]["analytic_ntf"]["path"]
+            elif "pansharpened" in files[fk]:
+                image_file = files[fk]["pansharpened"]["path"]
+            elif "sr" in files[fk]:
+                image_file = files[fk]["sr"]["path"]
+            elif "composite" in files[fk]:
+                image_file = files[fk]["composite"]["path"]
+                metafile = files[flist[-1]]["metadata"]["path"]
             meta = ac.planet.metadata_parse(metafile)
-            if ('platform' in meta) & (os.path.exists(image_file)):
-                input_type = 'Planet'
+            if ("platform" in meta) & (os.path.exists(image_file)):
+                input_type = "Planet"
                 break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Planet
         ################
 
@@ -311,11 +350,11 @@ def identify_bundle(bundle, input_type = None, output = None):
             tiles, metafile = ac.gf.bundle_test(bundle)
             if metafile is not None:
                 meta = ac.gf.metadata(metafile)
-                if meta['SatelliteID'] in ['GF1', 'GF1D', 'GF6']:
-                    input_type = 'GF'
-                    break ## exit loop
+                if meta["SatelliteID"] in ["GF1", "GF1D", "GF2", "GF6", "GF7"]:
+                    input_type = "GF"
+                    break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end GF
         ################
 
@@ -324,11 +363,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             files_xml, files_tiff = ac.amazonia.bundle_test(bundle)
             meta = ac.amazonia.metadata(files_xml[0])
-            if meta['sensor'] in ['AMAZONIA1_WFI', 'CBERS4A_WFI']:
-                input_type = 'AMAZONIA'
-                break ## exit loop
+            if meta["sensor"] in ["AMAZONIA1_WFI", "CBERS4A_WFI"]:
+                input_type = "AMAZONIA"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end AMAZONIA
         ################
 
@@ -338,11 +377,11 @@ def identify_bundle(bundle, input_type = None, output = None):
             tiles, metafile = ac.formosat.bundle_test(bundle)
             if metafile is not None:
                 meta = ac.formosat.metadata(metafile)
-                if meta['sensor'] in ['FORMOSAT5_RSI']:
-                    input_type = 'FORMOSAT'
-                    break ## exit loop
+                if meta["sensor"] in ["FORMOSAT5_RSI"]:
+                    input_type = "FORMOSAT"
+                    break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end FORMOSAT
         ################
 
@@ -353,12 +392,12 @@ def identify_bundle(bundle, input_type = None, output = None):
             for mi, mf in enumerate(metafiles):
                 meta = ac.sdgsat.metadata(mf)
                 cal = ac.sdgsat.calibration(calfiles[mi])
-                sensor = '{}_{}'.format(meta['SatelliteID'], meta['SensorID'])
-                if sensor in ['KX10_MII']:
-                    input_type = 'SDGSAT'
-                    break ## exit loop
+                sensor = "{}_{}".format(meta["SatelliteID"], meta["SensorID"])
+                if sensor in ["KX10_MII"]:
+                    input_type = "SDGSAT"
+                    break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end SDGSAT-1 KX10 MII
         ################
 
@@ -366,17 +405,17 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## IKONOS2
         try:
             files_dict = ac.ikonos.bundle_test(bundle)
-            metadata = ac.ikonos.metadata_parse(files_dict['metadata'])
-            if 'Source Image Metadata' in metadata:
-                if metadata['Source Image Metadata']['Sensor'][0] == 'IKONOS-2':
-                    input_type = 'IKONOS'
-                    break ## exit loop
-            elif 'Product Order Metadata' in metadata:
-                if metadata['Product Order Metadata']['Sensor Name'][0] == 'IKONOS-2':
-                    input_type = 'IKONOS'
-                    break ## exit loop
+            metadata = ac.ikonos.metadata_parse(files_dict["metadata"])
+            if "Source Image Metadata" in metadata:
+                if metadata["Source Image Metadata"]["Sensor"][0] == "IKONOS-2":
+                    input_type = "IKONOS"
+                    break  ## exit loop
+            elif "Product Order Metadata" in metadata:
+                if metadata["Product Order Metadata"]["Sensor Name"][0] == "IKONOS-2":
+                    input_type = "IKONOS"
+                    break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end IKONOS2
         ################
 
@@ -384,15 +423,15 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## DEIMOS2
         try:
             files_dict = ac.deimos.bundle_test(bundle)
-            if 'MS' in files_dict:
-                metadata = ac.deimos.metadata(files_dict['MS']['metadata'])
-            elif 'PAN' in images:
-                metadata = ac.deimos.metadata(files_dict['PAN']['metadata'])
-            if metadata['MISSION'] in ['DEIMOS', 'Deimos 2']:
-                    input_type = 'DEIMOS'
-                    break ## exit loop
+            if "MS" in files_dict:
+                metadata = ac.deimos.metadata(files_dict["MS"]["metadata"])
+            elif "PAN" in images:
+                metadata = ac.deimos.metadata(files_dict["PAN"]["metadata"])
+            if metadata["MISSION"] in ["DEIMOS", "Deimos 2"]:
+                input_type = "DEIMOS"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end DEIMOS2
         ################
 
@@ -400,11 +439,13 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## ECOSTRESS
         try:
             meta = ac.ecostress.attributes(bundle)
-            if (meta['InstrumentShortName'] == 'ECOSTRESS') & (meta['ProcessingLevelID'] == 'L1B'):
-                input_type = 'ECOSTRESS'
-                break ## exit loop
+            if (meta["InstrumentShortName"] == "ECOSTRESS") & (
+                meta["ProcessingLevelID"] == "L1B"
+            ):
+                input_type = "ECOSTRESS"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end ECOSTRESS
         ################
 
@@ -412,12 +453,15 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## ENMAP
         try:
             bundle_files = ac.enmap.bundle_test(bundle)
-            metadata, band_data = ac.enmap.metadata_parse(bundle_files['METADATA'])
-            if metadata['mission'].upper() + '_' + metadata['sensor'].upper() == 'ENMAP_HSI':
-                input_type = 'ENMAP'
-                break ## exit loop
+            metadata, band_data = ac.enmap.metadata_parse(bundle_files["METADATA"])
+            if (
+                metadata["mission"].upper() + "_" + metadata["sensor"].upper()
+                == "ENMAP_HSI"
+            ):
+                input_type = "ENMAP"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end ENMAP
         ################
 
@@ -425,11 +469,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## EMIT
         try:
             meta = ac.shared.nc_gatts(bundle)
-            if (meta['instrument'] == 'EMIT') & ('L1B' in meta['title']):
-                input_type = 'EMIT'
-                break ## exit loop
+            if (meta["instrument"] == "EMIT") & ("L1B" in meta["title"]):
+                input_type = "EMIT"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end EMIT
         ################
 
@@ -437,11 +481,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## Tanager
         try:
             meta = ac.tanager.metadata(bundle)
-            if ('strip_id' in meta):
-                input_type = 'Tanager'
-                break ## exit loop
+            if "strip_id" in meta:
+                input_type = "Tanager"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Tanager
         ################
 
@@ -450,11 +494,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             ret = ac.seviri.bundle_test(bundle)
             meta = ac.seviri.metadata(ret)
-            if (meta['AIID'] == 'SEVI'):
-                input_type = 'SEVIRI'
-                break ## exit loop
+            if meta["AIID"] == "SEVI":
+                input_type = "SEVIRI"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end SEVIRI
         ################
 
@@ -462,11 +506,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## FCI
         try:
             test = ac.fci.bundle_test(bundle)
-            if (test is not None):
-                input_type = 'FCI'
-                break ## exit loop
+            if test is not None:
+                input_type = "FCI"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end FCI
         ################
 
@@ -480,15 +524,15 @@ def identify_bundle(bundle, input_type = None, output = None):
                 for date in fd[platform]:
                     for b in fd[platform][date]:
                         for segment in fd[platform][date][b]:
-                            segment_file = fd[platform][date][b][segment]['path']
+                            segment_file = fd[platform][date][b][segment]["path"]
                             break
             ## read segment header
-            header = ac.himawari.segment_parse(segment_file, parse_data = False)
-            if header[1]['satellite_name'] in ['Himawari-8', 'Himawari-9']:
-                input_type = 'Himawari'
-                break ## exit loop
+            header = ac.himawari.segment_parse(segment_file, parse_data=False)
+            if header[1]["satellite_name"] in ["Himawari-8", "Himawari-9"]:
+                input_type = "Himawari"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Himawari
         ################
 
@@ -503,13 +547,15 @@ def identify_bundle(bundle, input_type = None, output = None):
                     for tp in fd[st].keys():
                         for tm in fd[st][tp]:
                             for bd in fd[st][tp][tm]:
-                                igatts = fd[st][tp][tm][bd]['gatts']
+                                igatts = fd[st][tp][tm][bd]["gatts"]
                                 break
-            if (igatts['platform_ID'] in ['G16', 'G17', 'G18', 'G19']) & (igatts['title'] == 'ABI L1b Radiances'):
-                input_type = 'GOES'
-                break ## exit loop
+            if (igatts["platform_ID"] in ["G16", "G17", "G18", "G19"]) & (
+                igatts["title"] == "ABI L1b Radiances"
+            ):
+                input_type = "GOES"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end GOES-R
         ################
 
@@ -517,12 +563,12 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## GOCI2
         try:
             gatts = ac.shared.nc_gatts(bundle)
-            #if gatts['title'] in ['GK2B GOCI-II Level-1B Radiances']:
-            if (gatts['platform'] == 'GK-2B') & (gatts['instrument'] == 'GOCI-II'):
-                input_type = 'GOCI'
-                break ## exit loop
+            # if gatts['title'] in ['GK2B GOCI-II Level-1B Radiances']:
+            if (gatts["platform"] == "GK-2B") & (gatts["instrument"] == "GOCI-II"):
+                input_type = "GOCI"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end GOCI2
         ################
 
@@ -531,11 +577,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             ## test bundle and get igatts
             sensor, igatts = ac.earthcare.bundle_test(bundle)
-            if (sensor == 'EarthCare_MSI'):
-                input_type = 'EarthCare'
-                break ## exit loop
+            if sensor == "EarthCare_MSI":
+                input_type = "EarthCare"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end EarthCare
         ################
 
@@ -544,11 +590,13 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             dimfile, datfile = ac.dimap.bundle_test(bundle)
             meta = ac.dimap.metadata(dimfile)
-            if (meta['met_format'] == 'DIMAP') & (meta['met_dataset'] == 'BEAM-PRODUCT'):
-                input_type = 'DIMAP'
-                break ## exit loop
+            if (meta["met_format"] == "DIMAP") & (
+                meta["met_dataset"] == "BEAM-PRODUCT"
+            ):
+                input_type = "DIMAP"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end DIMAP
         ################
 
@@ -557,11 +605,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             image_file, meta_file = ac.avhrr.bundle_test(bundle)
             meta = ac.avhrr.metadata(meta_file)
-            if ('AVHRR' in meta['sensor']):
-                input_type = 'AVHRR'
-                break ## exit loop
+            if "AVHRR" in meta["sensor"]:
+                input_type = "AVHRR"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end AVHRR
         ################
 
@@ -570,11 +618,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             gatts = ac.shared.nc_gatts(bundle)
             datasets = ac.shared.nc_datasets(bundle)
-            if gatts['instrument'].startswith('HYPSO-'):
-                input_type = 'HYPSO'
-                break ## exit loop
+            if gatts["instrument"].startswith("HYPSO-"):
+                input_type = "HYPSO"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end HYPSO
         ################
 
@@ -583,11 +631,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             file, jf = ac.wyvern.bundle_test(bundle)
             meta, gatts = ac.wyvern.metadata_parse(jf)
-            if gatts['sensor'].startswith('Wyvern'):
-                input_type = 'Wyvern'
-                break ## exit loop
+            if gatts["sensor"].startswith("Wyvern"):
+                input_type = "Wyvern"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Wyvern
         ################
 
@@ -595,11 +643,11 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## OpenCosmos
         try:
             sensor, paths = ac.opencosmos.bundle_test(bundle)
-            if sensor.startswith('OpenCosmos'):
-                input_type = 'OpenCosmos'
-                break ## exit loop
+            if sensor.startswith("OpenCosmos"):
+                input_type = "OpenCosmos"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end OpenCosmos
         ################
 
@@ -607,12 +655,12 @@ def identify_bundle(bundle, input_type = None, output = None):
         ## Haiyang
         try:
             ret = ac.haiyang.bundle_test(bundle)
-            meta = ac.haiyang.metadata(ret['metadata'])
-            if (meta['SatelliteID'] in ['HY-1C', 'HY-1D']):
-                input_type = 'HAIYANG'
-                break ## exit loop
+            meta = ac.haiyang.metadata(ret["metadata"])
+            if meta["SatelliteID"] in ["HY-1C", "HY-1D"]:
+                input_type = "HAIYANG"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Haiyang
         ################
 
@@ -621,26 +669,34 @@ def identify_bundle(bundle, input_type = None, output = None):
         try:
             imagefile, metafile = ac.huanjing.bundle_test(bundle)
             metadata = ac.huanjing.metadata_parse(metafile)
-            if metadata['SatelliteID'] in ['HJ2A', 'HJ2B']:
-                input_type = 'HUANJING'
-                break ## exit loop
+            if metadata["SatelliteID"] in ["HJ2A", "HJ2B"]:
+                input_type = "HUANJING"
+                break  ## exit loop
         except:
-            pass ## continue to next sensor
+            pass  ## continue to next sensor
         ## end Huanjing
         ################
 
         ################
-        break ## exit loop
+        break  ## exit loop
 
     ## remove the extracted bundle if it could not be identified
-    if (input_type is None) & (zipped) & (os.path.exists(bundle)) & (bundle != orig_bundle) & (ac.settings['run']['delete_extracted_input']):
-        print('Removing extracted bundle that could not be identified: {}'.format(bundle))
-        print('Files were extracted from: {}'.format(orig_bundle))
+    if (
+        (input_type is None)
+        & (zipped)
+        & (os.path.exists(bundle))
+        & (bundle != orig_bundle)
+        & (ac.settings["run"]["delete_extracted_input"])
+    ):
+        print(
+            "Removing extracted bundle that could not be identified: {}".format(bundle)
+        )
+        print("Files were extracted from: {}".format(orig_bundle))
         shutil.rmtree(bundle)
-        bundle = '{}'.format(orig_bundle)
+        bundle = "{}".format(orig_bundle)
 
     if input_type is not None:
-        print('Identified {} as {} type'.format(orig_bundle, input_type))
+        print("Identified {} as {} type".format(orig_bundle, input_type))
 
     ## return input_type
-    return(input_type, bundle, zipped, extracted_path)
+    return (input_type, bundle, zipped, extracted_path)
